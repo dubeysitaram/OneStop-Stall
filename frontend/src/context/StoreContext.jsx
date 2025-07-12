@@ -2,32 +2,50 @@ import { createContext, useEffect, useState } from "react";
 import axios from 'axios'
 export const StoreContext = createContext(null);
 const StoreContextProvider = (props) => {
+  const [loading, setLoading] = useState(true);
+
   const [cartItems, setCartItems] = useState({});
-  const url = "http://localhost:4000";
+  const url = "https://onestop-stall.onrender.com";
   const [token, setToken] = useState("");
   const[food_list,setFoodList]=useState([]);
 
-  const addToCart = async(itemId) => {
-    if (!cartItems[itemId])// if the user is adding the product first time in the cart
-     {
-      setCartItems((prev) => ({ ...prev, [itemId]: 1 }));//setting itemId with 1
+const addToCart = async (itemId) => {
+  setCartItems((prev) => {
+    const newCart = { ...prev };
+    newCart[itemId] = (newCart[itemId] || 0) + 1;
+    return newCart;
+  });
+
+  if (token) {
+    try {
+      await axios.post(url + "/api/cart/add", { itemId }, { headers: { token } });
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+    }
+  }
+};
+
+  
+const removeFromCart = async (itemId) => {
+  setCartItems((prev) => {
+    const newCart = { ...prev };
+    if (newCart[itemId] > 1) {
+      newCart[itemId] -= 1;
     } else {
-      setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] + 1 }));
+      delete newCart[itemId]; // Cleanly remove item if count is 1 or less
     }
-    if(token)
-    {
-      await axios.post(url+"/api/cart/add",{itemId},{headers:{token}})
+    return newCart;
+  });
+
+  if (token) {
+    try {
+      await axios.post(url + "/api/cart/remove", { itemId }, { headers: { token } });
+    } catch (error) {
+      console.error("Error removing from cart:", error);
     }
-  };
-  
-  const removeFromCart =async(itemId) => {
-    setCartItems((prev) => ({ ...prev, [itemId]: prev[itemId] - 1 }));
-    if(token)
-    {
-      await axios.post(url+"/api/cart/remove",{itemId},{headers:{token}})
-    }
-  };
-  
+  }
+};
+
   // for in loop  because cartitems are in form of objects and this will provide cart items one by one in form of 
   const getTotalCartAmount = () => {
     let totalAmount = 0;
@@ -50,28 +68,33 @@ const StoreContextProvider = (props) => {
     setCartItems(response.data.cartData);
   }
   
-  useEffect(() => {
-    async function loadData() {
-      await fetchFoodList();
-      if (localStorage.getItem("token")) {
-        setToken(localStorage.getItem("token"));
-        await loadCartData(localStorage.getItem("token"));
-      }
+useEffect(() => {
+  async function loadData() {
+    await fetchFoodList();
+    const storedToken = localStorage.getItem("token");
+    if (storedToken) {
+      setToken(storedToken);
+      await loadCartData(storedToken);
     }
-    loadData();
-  }, []);
+    setLoading(false);
+  }
+  loadData();
+}, []);
 
-  const contextValue = {
-    food_list,
-    cartItems,
-    setCartItems,
-    addToCart,
-    removeFromCart,
-    getTotalCartAmount,
-    url,
-    token,
-    setToken,
-  };
+
+const contextValue = {
+  food_list,
+  cartItems,
+  setCartItems,
+  addToCart,
+  removeFromCart,
+  getTotalCartAmount,
+  url,
+  token,
+  setToken,
+  loading
+};
+
   return (
     <StoreContext.Provider value={contextValue}>
       {props.children}
